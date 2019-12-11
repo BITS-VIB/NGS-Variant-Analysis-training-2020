@@ -6,7 +6,7 @@ Adapted training for GATK 4.1.4.x
 
 Adapted session for a one-day training
 
-Full information about the NGS-Variant hands-on training can be found on our <a href="http://wiki.bits.vib.be" target="_blank">BITS WIKI</a> in the dedicated pages starting at <a href="http://wiki.bits.vib.be/index.php/Hands-on_introduction_to_NGS_variant_analysis-2020" target="_blank">Hands-on_introduction_to_NGS_variant_analysis-2020</a>
+Full information about the NGS-Variant hands-on training can be found on our <a href="http://wiki.bits.vib.be" target="_blank">BITS WIKI</a> in the dedicated pages starting at <a href="https://wiki.bits.vib.be/index.php/Hands-on_introduction_to_NGS_variant_analysis-2018" target="_blank">Hands-on_introduction_to_NGS_variant_analysis-2018</a>
 
 Installation packages for executables used to develop this training are documented in two text files or stored as archives on our file server [NGSVAR2020-installers](http://data.bits.vib.be/pub/trainingen/NGSVAR2020/installers/).
 Please check for more recent versions at the time you install these resources.
