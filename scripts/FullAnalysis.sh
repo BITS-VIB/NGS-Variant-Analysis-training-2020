@@ -492,25 +492,25 @@ vcf-compare -r chr22 \
     ${hard} \
     ${gold} | grep "^VN" > snpeff/3venn_counts.txt
 
-#A.C VN	29	reference/NA12878_HG001-chr22_gold.vcf.gz (0.1%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (0.0%)
-#..C VN	51	reference/NA12878_HG001-chr22_gold.vcf.gz (0.1%)
-#A.. VN	128	snpeff/NA12878_VQSR_snpeff.vcf.gz (0.1%)
-#ABC VN	42110	reference/NA12878_HG001-chr22_gold.vcf.gz (99.8%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (46.1%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (46.2%)
-#AB. VN	49095	snpeff/NA12878_VQSR_snpeff.vcf.gz (53.7%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (53.8%)
+#a.c VN	28	reference/NA12878_HG001-chr22_gold.vcf.gz (0.1%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (0.0%)
+#a.. VN	127	snpeff/NA12878_VQSR_snpeff.vcf.gz (0.1%)
+#..c VN	1397	reference/NA12878_HG001-chr22_gold.vcf.gz (3.3%)
+#abc VN	40765	reference/NA12878_HG001-chr22_gold.vcf.gz (96.6%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (46.4%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (46.5%)
+#ab. VN	46923	snpeff/NA12878_VQSR_snpeff.vcf.gz (53.4%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (53.5%)
 
 # create venn plot
 # use R to plot
 # https://wiki.bits.vib.be/index.php/NGS_Exercise.6#Create_a_VENN_diagram_for_the_4_mappings
 
-3DVenn.R -a 128 -A chr22_VQSR \
+3DVenn.R -a 127 -A chr22_VQSR \
     -b 0 -B chr22_HardF \
-    -c 51 -C chr22_GoldS \
-    -d 49095 -e 29 -f 0 -i 42110 -t "NA12878 variant recall" -x 2 -o snpeff/recall3 -u 1
+    -c 1397 -C chr22_GoldS \
+    -d 46923 -e 28 -f 0 -i 40765 -t "NA12878 variant recall" -x 2 -o snpeff/recall3 -u 1
     
-3DVenn.R -a 128 -A chr22_VQSR \
+3DVenn.R -a 127 -A chr22_VQSR \
     -b 0 -B chr22_HardF \
-    -c 51 -C chr22_GoldS \
-    -d 49095 -e 29 -f 0 -i 42110 -t "NA12878 variant recall" -x 2 -o snpeff/recall3pc -u 1 -P 1
+    -c 1397 -C chr22_GoldS \
+    -d 46923 -e 28 -f 0 -i 40765 -t "NA12878 variant recall" -x 2 -o snpeff/recall3pc -u 1 -P 1
 
 
 # compare 4 including raw calls
@@ -520,43 +520,43 @@ vcf-compare -r chr22 \
     ${hard} \
     ${gold} | grep "^VN" > snpeff/4venn_counts.txt
 
-#AB.D VN	29	gatk_variantrecalibration/NA12878.vcf.gz (0.0%)	reference/NA12878_HG001-chr22_gold.vcf.gz (0.1%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (0.0%)
-#...D VN	51	reference/NA12878_HG001-chr22_gold.vcf.gz (0.1%)
-#AB.. VN	128	gatk_variantrecalibration/NA12878.vcf.gz (0.1%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (0.1%)
-#ABCD VN	42110	gatk_variantrecalibration/NA12878.vcf.gz (46.1%)	reference/NA12878_HG001-chr22_gold.vcf.gz (99.8%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (46.1%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (46.2%)
-#ABC. VN	49095	gatk_variantrecalibration/NA12878.vcf.gz (53.7%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (53.7%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (53.8%)
+#ab.d VN	28	gatk_variantrecalibration/NA12878.vcf.gz (0.0%)	reference/NA12878_HG001-chr22_gold.vcf.gz (0.1%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (0.0%)
+#ab.. VN	127	gatk_variantrecalibration/NA12878.vcf.gz (0.1%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (0.1%)
+#...d VN	1397	reference/NA12878_HG001-chr22_gold.vcf.gz (3.3%)
+#abcd VN	40765	gatk_variantrecalibration/NA12878.vcf.gz (46.4%)	reference/NA12878_HG001-chr22_gold.vcf.gz (96.6%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (46.4%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (46.5%)
+#abc. VN	46923	gatk_variantrecalibration/NA12878.vcf.gz (53.4%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (53.4%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (53.5%)
 
-4DVenn.R -a 128 -A chr22_raw \
+4DVenn.R -a 0 -A chr22_raw \
     -b 0 -B chr22_VQSR \
     -c 0 -C chr22_HardF \
-	-d 51 -D chr22_GoldS \
-	-e 128 \
+	-d 1397 -D chr22_GoldS \
+	-e 127 \
 	-f 0 \
 	-G 0 \
 	-j 0 \
 	-k 0 \
 	-l 0 \
-	-m 49095 \
-	-n 29 \
+	-m 46923 \
+	-n 28 \
 	-p 0 \
 	-q 0 \
-	-i 42110 \
+	-i 40765 \
 	-t "NA12878 variant recall" -x 2 -o snpeff/recall4 -u 1
 
-4DVenn.R -a 128 -A chr22_raw \
+4DVenn.R -a 0 -A chr22_raw \
     -b 0 -B chr22_VQSR \
     -c 0 -C chr22_HardF \
-	-d 51 -D chr22_GoldS \
-	-e 128 \
+	-d 1397 -D chr22_GoldS \
+	-e 127 \
 	-f 0 \
 	-G 0 \
 	-j 0 \
 	-k 0 \
 	-l 0 \
-	-m 49095 \
-	-n 29 \
+	-m 46923 \
+	-n 28 \
 	-p 0 \
 	-q 0 \
-	-i 42110 \
+	-i 40765 \
 	-t "NA12878 variant recall" -x 2 -o snpeff/recall4pc -u 1 -P 1
 
