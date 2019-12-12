@@ -2,7 +2,8 @@ Files added here are required to configure the script environment
 
 Most files can be fetched from the Broad BUNDLE ftp site with the script [get_bundle.sh](https://raw.githubusercontent.com/BITS-VIB/NGS-Variant-Analysis-training-2020/master/scripts/get_bundle.sh)
 
-Additional files were created for this traiing and can be fetched from this repo in [addedrefs.tgz](https://github.com/BITS-VIB/NGS-Variant-Analysis-training-2020/raw/master/data/addedrefs.tgz) and expanded in the **reference** folder where bundle files have been saved.
+Additional files were created for this traiing and can be fetched from this repo in [addedrefs.tgz](https://github.com/BITS-VIB/NGS-Variant-Analysis-training-2020/raw/master/data/addedrefs.tgz).
+The above script should have taken care of adding this files to the local **reference** folder together with the bundle data.
 
 ## addedrefs.tgz
 
