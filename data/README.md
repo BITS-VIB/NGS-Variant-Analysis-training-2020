@@ -1,6 +1,6 @@
 Files added here are required to configure the script environment
 
-Most files can be fetched from the Broad BUNDLE ftp site with the following code
+Most files can be fetched from the Broad BUNDLE ftp site with the script [get_bundle.sh](https://raw.githubusercontent.com/BITS-VIB/NGS-Variant-Analysis-training-2020/master/scripts/get_bundle.sh)
 
 ```
 #!/bin/env bash
