@@ -155,8 +155,8 @@ bamfile=bwa_mappings/${outpfx}_mrkdup_srt_22only.bam
 recalbamfile=${outpfx}_mrkdup_srt_recal.bam
 
 # base quality score recalibration
-knownsites="reference/hg38_v0_Homo_sapiens_assembly38.dbsnp138.vcf.gz"
-knownindels="reference/hg38_v0_Homo_sapiens_assembly38.known_indels.vcf.gz"
+knownsites="reference/dbsnp_138.hg38.vcf.gz"
+knownindels="reference/Homo_sapiens_assembly38.known_indels.vcf.gz"
 
 # compute table before
 java ${javaopts} -jar $GATK/gatk.jar \
@@ -235,30 +235,37 @@ mkdir -p ${outfolder}
 # recalibration sources
 
 ## variants-sets
+
+# dbSNP for ID-field annotation
+dbsnp146=reference/dbsnp_146.hg38.vcf.gz
+
 # True sites training resource: HapMap
-truetraining15=reference/hg38_v0_hapmap_3.3.hg38.vcf.gz
+truetraining15=reference/hapmap_3.3.hg38.vcf.gz
 
 # True sites training resource: Omni
-truetraining12=reference/hg38_v0_1000G_omni2.5.hg38.vcf.gz
+truetraining12=reference/1000G_omni2.5.hg38.vcf.gz
 
 # Non-true sites training resource: 1000G
-nontruetraining10=reference/hg38_v0_Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
+nontruetraining10=reference/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
 
 # Known sites resource, not used in training: dbSNP
-knowntraining2=reference/hg38_v0_Homo_sapiens_assembly38.dbsnp138.vcf.gz
+knowntraining2=reference/dbsnp_138.hg38.vcf.gz
 
 # indels True sites training resource: Mills
-truetrainingindel12=reference/hg38_v0_Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
+truetrainingindel12=reference/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
 
 # indels Axiom
 axiom10=reference/Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz
 
 # convert to VCF
+# https://software.broadinstitute.org/gatk/documentation/article?id=11813
 java ${javaopts} -jar $GATK/gatk.jar \
 	GenotypeGVCFs \
 	--reference ${reference_fa} \
 	--variant gatk_variantcalling/${samplename}.g.vcf.gz \
 	--output ${outfolder}/${samplename}.vcf.gz \
+	--dbsnp ${dbsnp146} \
+	--use-new-qual-calculator \
 	--tmp-dir tmpfiles/
 
 # mark ExcessHet
