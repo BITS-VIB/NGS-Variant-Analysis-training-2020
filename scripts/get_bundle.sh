@@ -1,4 +1,5 @@
 #!/bin/env bash
+# author:Stephane Plaisance (VIB-NC), 2019-12-12
 
 #############################
 # get Broad hg38 BUNDLE data
@@ -39,7 +40,7 @@ bundleurl=ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38
 
 for file in $LIST; do
 echo "# downloading $url"
-wget -P reference -np --ftp-user=gsapubftp-anonymous ${bundleurl}/$file"
+wget -P reference -np --ftp-user=gsapubftp-anonymous ${bundleurl}/$file
 done
 
 # add extra files from our GIT repo
