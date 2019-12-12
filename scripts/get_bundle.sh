@@ -41,3 +41,7 @@ for file in $LIST; do
 echo "# downloading $url"
 wget -P reference -np --ftp-user=gsapubftp-anonymous ${bundleurl}/$file"
 done
+
+# add extra files from our GIT repo
+wget -P reference -np https://github.com/BITS-VIB/NGS-Variant-Analysis-training-2020/raw/master/data/addedrefs.tgz &&\
+tar -xzvf reference/addedrefs.tgz
