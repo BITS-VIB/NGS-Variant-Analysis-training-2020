@@ -16,7 +16,7 @@ log=logs/runlog.txt
 cat /dev/null > ${log}
 
 # record all script actions
-set -x
+#set -x
 #exec > ${log} 2>&1
 exec &> >(tee -i ${log})
 
@@ -29,6 +29,16 @@ javaopts="-Xms24g -Xmx24g"
 
 # my samtools is here
 samtools=$BIOTOOLS/samtools/bin/samtools
+
+function mytest {
+    "$@"
+    local status=$?
+    if [ ${status} -ne 0 ]; then
+        echo "error with $1" >&2
+        exit
+    fi
+    return ${status}
+}
 
 #############################################
 # Get GATK Bundle files
@@ -43,18 +53,31 @@ samtools=$BIOTOOLS/samtools/bin/samtools
 
 # Note: the chr22 read subsets should be first prepared as described next (this takes time!!)
 # mkdir -p reads
+# # download bam chr22 mappings
 # samtools view -b -F 4 \
 #	ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/NA12878/NIST_NA12878_HG001_HiSeq_300x/NHGRI_Illumina300X_novoalign_bams/HG001.GRCh38_full_plus_hs38d1_analysis_set_minus_alts.300x.bam \
-#	chr22 \
-#	| samtools fastq \
-#		-1 reads/HG001.GRCh38_chr22_1.fq \
-#		-2 reads/HG001.GRCh38_chr22_2.fq \
+#	chr22 > NHGRI_Illumina300X_novoalign_chr22.bam
+#
+# # sort by names and extract pairs to fastq
+# samtools sort -n \
+#	NHGRI_Illumina300X_novoalign_chr22.bam \
+#	> NHGRI_Illumina300X_novoalign_chr22_nmsrt.bam
+#
+# # convert to fastq (discard unmapped and singletons)
+# samtools fastq \
+#		-F 0x900 \
+#		-@ 24 \
 #		-0 /dev/null \
+#		-1 HG001.GRCh38_chr22_1.fq \
+#		-2 HG001.GRCh38_chr22_2.fq \
 #		-s /dev/null \
 #		-n \
-#		- && \
-#		bgzip -c reads/HG001.GRCh38_chr22_?.fq
-
+#		NHGRI_Illumina300X_novoalign_chr22_nmsrt.bam
+# [M::bam2fq_mainloop] discarded 1508933 singletons
+# [M::bam2fq_mainloop] processed 66909581 reads
+#
+# # cleanup
+# rm ./*.bam*
 
 #############################################
 # BWA index & MEM mapping
@@ -62,7 +85,7 @@ samtools=$BIOTOOLS/samtools/bin/samtools
 
 ## create a bwa index when absent
 bwaidxfolder=bwa_index
-mkdir -p ${bwaidx}
+mkdir -p ${bwaidxfolder}
 
 reference_fa=reference/Homo_sapiens_assembly38.fasta
 bwaidx="${bwaidxfolder}/$(basename ${reference_fa})"
@@ -77,7 +100,6 @@ fi
 
 
 ## map reads to reference
-
 reads_1="reads/HG001.GRCh38_chr22_1.fq.gz"
 reads_2="reads/HG001.GRCh38_chr22_2.fq.gz"
 
@@ -91,7 +113,7 @@ mkdir -p ${workdir}/${outfolder}
 
 # map using BWA mem (only once)
 if [ ! -f bwa_mappings/mapping_done ]; then
-	echo "# creating BWA index"
+	echo "# mapping reads with BWA mem"
 	cmd="bwa mem -t ${bwathr} \
 		-M \
 		-R '@RG\tID:HG001\tLB:NA12878_giab\tPU:unknown-0.0\tPL:Illumina\tSM:NA12878' \
@@ -118,6 +140,7 @@ fi
 # more records in RAM speeds up when enough RAM is present
 recinram=10000000
 
+if [ ! -f bwa_mappings/preprocessing_done ]; then
 # sort by queryname
 java ${javaopts} -jar $PICARD/picard.jar \
 	SortSam \
@@ -177,11 +200,14 @@ chr="chr22"
 ${samtools} view -@ ${samtoolsthr} -h -b \
 	${outfolder}/${outpfx}_mrkdup_srt-tags.bam ${chr} \
 	-o ${outfolder}/${outpfx}_mrkdup_srt_22only.bam && \
-	${samtools} index ${outfolder}/${outpfx}_mrkdup_srt_22only.bam
-
+	${samtools} index ${outfolder}/${outpfx}_mrkdup_srt_22only.bam && \
+		touch bwa_mappings/preprocessing_done
+else
+	echo "# GATK preprocessing already done"
+fi
 
 #############################################
-# GATK4 BAM PROCESSING
+# GATK4 BAM RECALIBRATION
 #############################################
 
 outfolder=gatk_preprocessing
@@ -194,6 +220,7 @@ recalbamfile=${outpfx}_mrkdup_srt_recal.bam
 knownsites="reference/dbsnp_138.hg38.vcf.gz"
 knownindels="reference/Homo_sapiens_assembly38.known_indels.vcf.gz"
 
+if [ ! -f gatk_preprocessing/recalibration_done ]; then
 # compute table before
 java ${javaopts} -jar $GATK/gatk.jar \
 	BaseRecalibrator \
@@ -238,8 +265,12 @@ java ${javaopts} -jar $PICARD/picard.jar \
 	I=${outfolder}/${recalbamfile} \
 	O=gatk_multiple_metrics/multiple_metrics \
 	R=${reference_fa} \
-	TMP_DIR=tmpfiles/
+	TMP_DIR=tmpfiles && \
+	touch gatk_preprocessing/recalibration_done
 
+else
+	echo "# GATK BAM recalibration already done"
+fi
 
 #############################################
 # GATK4 VARIANT CALLING (chr22 only)
@@ -248,6 +279,7 @@ java ${javaopts} -jar $PICARD/picard.jar \
 outfolder=gatk_variantcalling
 mkdir -p ${outfolder}
 
+if [ ! -f gatk_variantcalling/calling_done ]; then
 # call short variants to gvcf format and save supporting reads
 java ${javaopts} -jar $GATK/gatk.jar \
 	HaplotypeCaller  \
@@ -258,7 +290,11 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--sample-ploidy 2 \
 	--intervals chr22 \
 	--bam-output ${outfolder}/${samplename}_HC_aligned_reads.bam \
-	--tmp-dir tmpfiles/
+	--tmp-dir tmpfiles && \
+	touch gatk_variantcalling/calling_done
+else
+	echo "# GATK calling already done"
+fi
 
 
 #############################################
@@ -269,7 +305,6 @@ outfolder=gatk_variantrecalibration
 mkdir -p ${outfolder}
 
 # recalibration sources
-
 ## variants-sets
 
 # dbSNP for ID-field annotation
@@ -293,6 +328,7 @@ truetrainingindel12=reference/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
 # indels Axiom
 axiom10=reference/Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz
 
+if [ ! -f gatk_variantrecalibration/variantrecalibation_done ]; then
 # convert to VCF
 # https://software.broadinstitute.org/gatk/documentation/article?id=11813
 java ${javaopts} -jar $GATK/gatk.jar \
@@ -302,8 +338,8 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--output ${outfolder}/${samplename}.vcf.gz \
 	--dbsnp ${dbsnp146} \
 	--use-new-qual-calculator \
-	--tmp-dir tmpfiles/
-
+	--tmp-dir tmpfiles
+	
 # mark ExcessHet
 threshold=54.69
 java ${javaopts} -jar $GATK/gatk.jar \
@@ -405,7 +441,11 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--create-output-variant-index true \
 	-mode INDEL \
 	-O ${outfolder}/${samplename}_VQSR.vcf.gz \
-	--tmp-dir tmpfiles/
+	--tmp-dir tmpfiles && \
+	touch gatk_variantrecalibration/variantrecalibation_done
+else
+	echo "# GATK variant recalibration already done"
+fi
 
 
 #############################################
@@ -417,12 +457,17 @@ mkdir -p ${outfolder}
 
 build="GRCh38.86"
 
+if [ ! -f snpeff/VQSR_annotation_done ]; then
 java ${javaopts} -jar $SNPEFF/snpEff.jar \
 	-htmlStats ${outfolder}/gatk_snpEff_summary.html \
 	${build} \
 	gatk_variantrecalibration/${samplename}_VQSR.vcf.gz | \
 	bgzip -c > ${outfolder}/${samplename}_VQSR_snpeff.vcf.gz && \
-	tabix -p vcf ${outfolder}/${samplename}_VQSR_snpeff.vcf.gz
+	tabix -p vcf ${outfolder}/${samplename}_VQSR_snpeff.vcf.gz && \
+	touch snpeff/VQSR_annotation_done
+else
+	echo "# SNPEff annotation for VQSR variant already done"
+fi
 
 
 #############################################
@@ -509,12 +554,17 @@ mkdir -p ${outfolder}
 
 build="GRCh38.86"
 
+if [ ! -f snpeff/HardFiltering_annotation_done ]; then
 java ${javaopts} -jar $SNPEFF/snpEff.jar \
 	-htmlStats ${outfolder}/gatk_hardfiltering_snpEff_summary.html \
 	${build} \
 	gatk_varianthardfiltering/${samplename}_snp_indel_filtered.vcf.gz | \
 	bgzip -c > ${outfolder}/${samplename}_hardfiltering_snpeff.vcf.gz && \
-	tabix -p vcf ${outfolder}/${samplename}_hardfiltering_snpeff.vcf.gz
+	tabix -p vcf ${outfolder}/${samplename}_hardfiltering_snpeff.vcf.gz && \
+	touch snpeff/HardFiltering_annotation_done
+else
+	echo "# SNPEff annotation for hard-filtered variant already done"
+fi
 
 
 #############################################
@@ -527,6 +577,7 @@ raw=gatk_variantrecalibration/NA12878.vcf.gz
 vqsr=snpeff/NA12878_VQSR_snpeff.vcf.gz
 hard=snpeff/NA12878_hardfiltering_snpeff.vcf.gz
 
+if [ ! -f snpeff/comparisons_done ]; then
 # compare 3
 vcf-compare -r chr22 \
     ${vqsr} \
@@ -599,5 +650,8 @@ vcf-compare -r chr22 \
 	-p 0 \
 	-q 0 \
 	-i 40765 \
-	-t "NA12878 variant recall" -x 2 -o snpeff/recall4pc -u 1 -P 1
-
+	-t "NA12878 variant recall" -x 2 -o snpeff/recall4pc -u 1 -P 1 && \
+	touch snpeff/comparisons_done
+else
+	echo "# VCF-tools comparisons already done"
+fi
