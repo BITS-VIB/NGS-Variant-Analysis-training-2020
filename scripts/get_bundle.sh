@@ -47,6 +47,9 @@ done
 # wgetopt="--retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 0 --continue"
 # echo $LIST | xargs -I {} -n 1 -P ${nthr} sh -c "echo %; wget -P reference --ftp-user=gsapubftp-anonymous ${wgetopt} -np ${bundleurl}/{}"
 
+# decompress reference fasta
+gunzip -k reference/Homo_sapiens_assembly38.fasta.gz
+
 # add extra files from our GIT repo
 wget -P reference -np https://github.com/BITS-VIB/NGS-Variant-Analysis-training-2020/raw/master/data/addedrefs.tgz &&\
 tar -xzvf reference/addedrefs.tgz

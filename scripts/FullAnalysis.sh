@@ -31,26 +31,57 @@ javaopts="-Xms24g -Xmx24g"
 samtools=$BIOTOOLS/samtools/bin/samtools
 
 #############################################
-# BWA MEM mapping
+# Get GATK Bundle files
+#############################################
+
+# Please run the separate script get_bundle.sh before attempting to run this one
+
+#############################################
+# Get chr22 reads from GIAB ftp
+# source: NIST_NA12878_HG001_HiSeq_300x
+#############################################
+
+# Note: the chr22 read subsets should be first prepared as described next (this takes time!!)
+# mkdir -p reads
+# samtools view -b -F 4 \
+#	ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/data/NA12878/NIST_NA12878_HG001_HiSeq_300x/NHGRI_Illumina300X_novoalign_bams/HG001.GRCh38_full_plus_hs38d1_analysis_set_minus_alts.300x.bam \
+#	chr22 \
+#	| samtools fastq \
+#		-1 reads/HG001.GRCh38_chr22_1.fq \
+#		-2 reads/HG001.GRCh38_chr22_2.fq \
+#		-0 /dev/null \
+#		-s /dev/null \
+#		-n \
+#		- && \
+#		bgzip -c reads/HG001.GRCh38_chr22_?.fq
+
+
+#############################################
+# BWA index & MEM mapping
 #############################################
 
 ## create a bwa index when absent
-mkdir -p bwaidx
+bwaidxfolder=bwa_index
+mkdir -p ${bwaidx}
 
-reference_fa=reference/Homo_sapiens.UCSC.hg38.fa
-bwaidx="bwaidx/Homo_sapiens.UCSC.hg38.fa"
+reference_fa=reference/Homo_sapiens_assembly38.fasta
+bwaidx="${bwaidxfolder}/$(basename ${reference_fa})"
 
-if [ ! -f bwaidx/index_created ]; then
-echo "# creating BWA index"
-bwa index ${reference_fa} -p ${bwaidx} \
-  && touch bwaidx/index_created
+if [ ! -f ${bwaidxfolder}/index_created ]; then
+	echo "# creating BWA index"
+	bwa index ${reference_fa} -p ${bwaidx} \
+  	&& touch ${bwaidxfolder}/index_created
 else
-echo "# BWA index already exists"
+	echo "# BWA index already exists"
 fi
 
+
 ## map reads to reference
+
 reads_1="reads/HG001.GRCh38_chr22_1.fq.gz"
 reads_2="reads/HG001.GRCh38_chr22_2.fq.gz"
+
+# mapping settings
 thr=84
 outpfx="HG001_chr22"
 samplename="NA12878"
@@ -58,21 +89,26 @@ samplename="NA12878"
 outfolder=bwa_mappings
 mkdir -p ${workdir}/${outfolder}
 
-# map using BWA mem
-cmd="bwa mem -t ${bwathr} \
-	-M \
-	-R '@RG\tID:HG001\tLB:NA12878_giab\tPU:unknown-0.0\tPL:Illumina\tSM:NA12878' \
-	${bwaidx} \
-	${reads_1} \
-	${reads_2} | ${samtools} view -b - -o ${outfolder}/${outpfx}_rawmappings.bam"
-
-echo "# ${cmd}"
-eval ${cmd}
-
-# get flagstats
-${samtools} flagstat -@ ${samtoolsthr} \
-	${outfolder}/${outpfx}_rawmappings.bam \
-	> ${outfolder}/${outpfx}_rawmappings_flagstats.txt
+# map using BWA mem (only once)
+if [ ! -f bwa_mappings/mapping_done ]; then
+	echo "# creating BWA index"
+	cmd="bwa mem -t ${bwathr} \
+		-M \
+		-R '@RG\tID:HG001\tLB:NA12878_giab\tPU:unknown-0.0\tPL:Illumina\tSM:NA12878' \
+		${bwaidx} \
+		${reads_1} \
+		${reads_2} | ${samtools} view -b - -o ${outfolder}/${outpfx}_rawmappings.bam"
+	echo "# ${cmd}"
+	eval ${cmd}
+	# get flagstats
+	# then flag record that mapping was done for next run
+	${samtools} flagstat -@ ${samtoolsthr} \
+		${outfolder}/${outpfx}_rawmappings.bam \
+		> ${outfolder}/${outpfx}_rawmappings_flagstats.txt && \
+		touch bwa_mappings/mapping_done
+else
+	echo "# BWA mapping already done"
+fi
 
 
 #############################################
@@ -462,9 +498,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
     -I ${outfolder}/${samplename}_snp_filtered.vcf.gz \
     -I ${outfolder}/${samplename}_indels_filtered.vcf.gz \
     -R ${reference_fa} \
-    -O ${outfolder}/${samplename}_snp_indel_filtered.vcf.gz \
-	CREATE_INDEX=true \
-	TMP_DIR=tmpfiles/
+    -O ${outfolder}/${samplename}_snp_indel_filtered.vcf.gz
 
 #############################################
 # SnpEff on HardFiltering
