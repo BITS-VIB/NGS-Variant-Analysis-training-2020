@@ -263,7 +263,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 java ${javaopts} -jar $PICARD/picard.jar \
 	CollectMultipleMetrics \
 	I=${outfolder}/${recalbamfile} \
-	O=${outfolder}/multiple_metrics \
+	O=${outfolder}/${outpfx}_multiple_metrics \
 	R=${reference_fa} \
 	MAX_RECORDS_IN_RAM=${recinram} \
 	TMP_DIR=tmpfiles/ && \
@@ -290,7 +290,19 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--sample-ploidy 2 \
 	--intervals chr22 \
 	--bam-output ${outfolder}/${samplename}_HC_aligned_reads.bam \
-	--tmp-dir tmpfiles && \
+	--tmp-dir tmpfiles/ 
+	
+	# convert to VCF
+# https://software.broadinstitute.org/gatk/documentation/article?id=11813
+java ${javaopts} -jar $GATK/gatk.jar \
+	GenotypeGVCFs \
+	--reference ${reference_fa} \
+	--variant ${outfolder}/${samplename}.g.vcf.gz \
+	--output ${outfolder}/${samplename}.vcf.gz \
+	--intervals chr22 \
+	--dbsnp ${dbsnp146} \
+	--use-new-qual-calculator \
+	--tmp-dir tmpfiles/ && \
 	touch gatk_variantcalling/calling_done
 else
 	echo "# GATK calling already done"
@@ -331,23 +343,14 @@ axiom10=reference/Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz
 # intervals to restrict analysis to chr22
 intervals=reference/chr22.bed
 
+# maxgaussians default to 8 is too high for chr22 calls
+maxgaussians=4
+
 if [ ! -f gatk_variantrecalibration/variantrecalibation_done ]; then
 
-# copy file from previous step
-cp gatk_variantcalling/${samplename}.g.vcf.gz* ${outfolder}/
+# copy last files from previous step
+cp gatk_variantcalling/${samplename}.vcf.gz* ${outfolder}/
 
-# convert to VCF
-# https://software.broadinstitute.org/gatk/documentation/article?id=11813
-java ${javaopts} -jar $GATK/gatk.jar \
-	GenotypeGVCFs \
-	--reference ${reference_fa} \
-	--variant ${outfolder}/${samplename}.g.vcf.gz \
-	--output ${outfolder}/${samplename}.vcf.gz \
-	--intervals chr22 \
-	--dbsnp ${dbsnp146} \
-	--use-new-qual-calculator \
-	--tmp-dir tmpfiles/
-	
 # mark ExcessHet
 threshold=54.69
 java ${javaopts} -jar $GATK/gatk.jar \
@@ -383,7 +386,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--use-annotation MQRankSum \
 	--use-annotation ReadPosRankSum \
 	--mode SNP \
-	--max-gaussians 4 \
+	--max-gaussians ${maxgaussians} \
 	--tranches-file ${outfolder}/${samplename}_recalibrate_snp.tranches \
 	--tranche 100.0 \
 	--tranche 99.9 \
@@ -410,7 +413,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--use-annotation MQRankSum \
 	--use-annotation ReadPosRankSum \
 	--mode INDEL \
-	--max-gaussians 4 \
+	--max-gaussians ${maxgaussians} \
 	--tranches-file ${outfolder}/${samplename}_recalibrate_indels.tranches \
 	--tranche 100.0 \
 	--tranche 99.95 \
@@ -519,15 +522,15 @@ java ${javaopts} -jar $GATK/gatk.jar \
 java ${javaopts} -jar $GATK/gatk.jar \
 	VariantFiltration \
 	-V ${outfolder}/${samplename}_snp.vcf.gz \
+	-O ${outfolder}/${samplename}_snp_filtered.vcf.gz \
 	--filter "QD < 2.0" --filter-name "QD2" \
 	--filter "QUAL < 30.0" --filter-name "QUAL30" \
 	--filter "SOR > 3.0" --filter-name "SOR3" \
 	--filter "FS > 60.0" --filter-name "FS60" \
 	--filter "MQ < 40.0" --filter-name "MQ40" \
 	--filter "MQRankSum < -12.5" --filter-name "MQRankSum-12.5" \
-	--filter "ReadPosRankSum < -8.0" --filter-name "ReadPosRankSum-8" \
-	-O ${outfolder}/${samplename}_snp_filtered.vcf.gz
-
+	--filter "ReadPosRankSum < -8.0" --filter-name "ReadPosRankSum-8"
+	
 ###########################################
 # 3) hard-Filter INDELs on multiple metrics
 ###########################################
@@ -536,18 +539,19 @@ java ${javaopts} -jar $GATK/gatk.jar \
 java ${javaopts} -jar $GATK/gatk.jar \
 	SelectVariants \
 	-V ${outfolder}/${samplename}_excesshet_filtered.vcf.gz \
+	-O ${outfolder}/${samplename}_mixed_indels.vcf.gz \
 	--select-type-to-include INDEL \
 	--select-type-to-include MIXED \
-	-O ${outfolder}/${samplename}_mixed_indels.vcf.gz
+
 
 java ${javaopts} -jar $GATK/gatk.jar \
 	VariantFiltration \
 	-V ${outfolder}/${samplename}_mixed_indels.vcf.gz \
+	-O ${outfolder}/${samplename}_mixed_indels_filtered.vcf.gz \
 	--filter "QD < 2.0" --filter-name "QD2" \
 	--filter "QUAL < 30.0" --filter-name "QUAL30" \
 	--filter "FS > 200.0" --filter-name "FS200" \
-	--filter "ReadPosRankSum < -20.0" --filter-name "ReadPosRankSum-20" \
-	-O ${outfolder}/${samplename}_mixed_indels_filtered.vcf.gz
+	--filter "ReadPosRankSum < -20.0" --filter-name "ReadPosRankSum-20"
 
 ###########################################
 ## 4) merge SNP and Indel filtered calls	
@@ -559,7 +563,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	-I ${outfolder}/${samplename}_snp_filtered.vcf.gz \
 	-I ${outfolder}/${samplename}_mixed_indels_filtered.vcf.gz \
 	-R ${reference_fa} \
-	-O ${outfolder}/${samplename}_snp_indel_filtered.vcf.gz  \
+	-O ${outfolder}/${samplename}_snp_indel_filtered.vcf.gz && \
 	touch ${outfolder}/hardFiltering_recalibation_done
 else
 	echo "# GATK hardFiltering recalibration already done"
@@ -599,6 +603,7 @@ vqsr=snpeff/NA12878_VQSR_snpeff.vcf.gz
 hard=snpeff/NA12878_hardfiltering_snpeff.vcf.gz
 
 if [ ! -f snpeff/comparisons_done ]; then
+
 # compare 3
 vcf-compare -r chr22 \
 	${vqsr} \
@@ -608,7 +613,6 @@ vcf-compare -r chr22 \
 # ..c VN	1396	reference/NA12878_HG001-chr22_gold.vcf.gz (3.3%)
 # abc VN	40794	reference/NA12878_HG001-chr22_gold.vcf.gz (96.7%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (46.6%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (46.6%)
 # ab. VN	46821	snpeff/NA12878_VQSR_snpeff.vcf.gz (53.4%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (53.4%)
-
 
 # create venn plot
 # use R to plot
@@ -639,7 +643,6 @@ vcf-compare -r chr22 \
 	-u 1 \
 	-P 1
 
-
 # compare 4 including raw calls
 vcf-compare -r chr22 \
 	${raw} \
@@ -650,13 +653,6 @@ vcf-compare -r chr22 \
 # ...d VN	1396	reference/NA12878_HG001-chr22_gold.vcf.gz (3.3%)
 # abcd VN	40794	gatk_variantrecalibration/NA12878.vcf.gz (46.6%)	reference/NA12878_HG001-chr22_gold.vcf.gz (96.7%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (46.6%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (46.6%)
 # abc. VN	46821	gatk_variantrecalibration/NA12878.vcf.gz (53.4%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (53.4%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (53.4%)
-
-
-#ab.d VN	28	gatk_variantrecalibration/NA12878.vcf.gz (0.0%)	reference/NA12878_HG001-chr22_gold.vcf.gz (0.1%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (0.0%)
-#ab.. VN	127	gatk_variantrecalibration/NA12878.vcf.gz (0.1%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (0.1%)
-#...d VN	1397	reference/NA12878_HG001-chr22_gold.vcf.gz (3.3%)
-#abcd VN	40765	gatk_variantrecalibration/NA12878.vcf.gz (46.4%)	reference/NA12878_HG001-chr22_gold.vcf.gz (96.6%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (46.4%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (46.5%)
-#abc. VN	46923	gatk_variantrecalibration/NA12878.vcf.gz (53.4%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (53.4%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (53.5%)
 
 4DVenn.R -a 0 -A chr22_raw \
 	-b 0 -B chr22_VQSR \
