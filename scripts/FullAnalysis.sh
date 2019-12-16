@@ -328,17 +328,24 @@ truetrainingindel12=reference/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz
 # indels Axiom
 axiom10=reference/Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz
 
+# intervals to restrict analysis to chr22
+intervals=reference/chr22.bed
+
 if [ ! -f gatk_variantrecalibration/variantrecalibation_done ]; then
+
+# copy file from previous step
+cp gatk_variantcalling/${samplename}.g.vcf.gz* ${outfolder}/
+
 # convert to VCF
 # https://software.broadinstitute.org/gatk/documentation/article?id=11813
 java ${javaopts} -jar $GATK/gatk.jar \
 	GenotypeGVCFs \
 	--reference ${reference_fa} \
-	--variant gatk_variantcalling/${samplename}.g.vcf.gz \
+	--variant ${outfolder}/${samplename}.g.vcf.gz \
 	--output ${outfolder}/${samplename}.vcf.gz \
 	--dbsnp ${dbsnp146} \
 	--use-new-qual-calculator \
-	--tmp-dir tmpfiles
+	--tmp-dir tmpfiles/
 	
 # mark ExcessHet
 threshold=54.69
@@ -362,6 +369,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	-R ${reference_fa} \
 	-V ${outfolder}/${samplename}_excesshet_sitesonly.vcf.gz \
 	-O ${outfolder}/${samplename}_recalibrate_SNP.recal.vcf.gz \
+	--intervals ${intervals} \
 	--resource:hapmap,known=false,training=true,truth=true,prior=15.0 ${truetraining15} \
 	--resource:omni,known=false,training=true,truth=true,prior=12.0 ${truetraining12} \
 	--resource:1000G,known=false,training=true,truth=false,prior=10.0 ${nontruetraining10} \
