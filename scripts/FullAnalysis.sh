@@ -263,11 +263,11 @@ java ${javaopts} -jar $GATK/gatk.jar \
 java ${javaopts} -jar $PICARD/picard.jar \
 	CollectMultipleMetrics \
 	I=${outfolder}/${recalbamfile} \
-	O=gatk_multiple_metrics/multiple_metrics \
+	O=${outfolder}/multiple_metrics \
 	R=${reference_fa} \
-	TMP_DIR=tmpfiles && \
+	MAX_RECORDS_IN_RAM=${recinram} \
+	TMP_DIR=tmpfiles/ && \
 	touch gatk_preprocessing/recalibration_done
-
 else
 	echo "# GATK BAM recalibration already done"
 fi
