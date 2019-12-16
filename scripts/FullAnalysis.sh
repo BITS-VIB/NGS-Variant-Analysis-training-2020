@@ -530,7 +530,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--filter "MQ < 40.0" --filter-name "MQ40" \
 	--filter "MQRankSum < -12.5" --filter-name "MQRankSum-12.5" \
 	--filter "ReadPosRankSum < -8.0" --filter-name "ReadPosRankSum-8"
-	
+
 ###########################################
 # 3) hard-Filter INDELs on multiple metrics
 ###########################################
@@ -541,7 +541,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	-V ${outfolder}/${samplename}_excesshet_filtered.vcf.gz \
 	-O ${outfolder}/${samplename}_mixed_indels.vcf.gz \
 	--select-type-to-include INDEL \
-	--select-type-to-include MIXED \
+	--select-type-to-include MIXED
 
 
 java ${javaopts} -jar $GATK/gatk.jar \
