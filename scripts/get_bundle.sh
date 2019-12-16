@@ -61,7 +61,7 @@ java -jar $PICARD/picard.jar CreateSequenceDictionary \
 # create chr22 BED interval file
 gawk 'BEGIN{FS="\t"; OFS="\t"}{if ($2 ~/chr22/) {split($2,chr,":"); split($3,len,":"); print chr[2],0,len[2]}}' \
 	reference/Homo_sapiens_assembly38.dict \
-	> chr22.bed
+	> reference/chr22.bed
 
 # add extra chr22 files from our GIT repo
 wget -P reference -np https://github.com/BITS-VIB/NGS-Variant-Analysis-training-2020/raw/master/data/addedrefs.tgz &&\
