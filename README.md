@@ -1,7 +1,8 @@
+[(BITS-VIB)](https://github.com/BITS-VIB)
+
 # NGS-Variant-Analysis-training-2020
 Adapted training for GATK 4.1.4.x
 
-[(BITS-VIB)](https://github.com/BITS-VIB)
 ## Hands-on introduction to NGS variant analysis (2020-session)
 
 Adapted session for a one-day training using BWA and GATK4
