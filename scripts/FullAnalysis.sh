@@ -693,3 +693,6 @@ vcf-compare -r chr22 \
 else
 	echo "# VCF-tools comparisons already done"
 fi
+
+# cleanup leftovers
+rm tmpfiles/*
