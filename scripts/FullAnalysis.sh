@@ -272,12 +272,16 @@ else
 	echo "# GATK BAM recalibration already done"
 fi
 
+
 #############################################
 # GATK4 VARIANT CALLING (chr22 only)
 #############################################
 
 outfolder=gatk_variantcalling
 mkdir -p ${outfolder}
+
+# dbSNP for ID-field annotation
+dbsnp146=reference/dbsnp_146.hg38.vcf.gz
 
 if [ ! -f gatk_variantcalling/calling_done ]; then
 # call short variants to gvcf format and save supporting reads
@@ -302,6 +306,16 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--intervals chr22 \
 	--dbsnp ${dbsnp146} \
 	--use-new-qual-calculator \
+	--tmp-dir tmpfiles/
+	
+# mark ExcessHet
+threshold=54.69
+java ${javaopts} -jar $GATK/gatk.jar \
+	VariantFiltration \
+	--variant ${outfolder}/${samplename}.vcf.gz \
+	--filter-expression "ExcessHet > ${threshold}" \
+	--filter-name "ExcessHet" \
+	-O ${outfolder}/${samplename}_excesshet_filtered.vcf.gz \
 	--tmp-dir tmpfiles/ && \
 	touch gatk_variantcalling/calling_done
 else
@@ -318,9 +332,6 @@ mkdir -p ${outfolder}
 
 # recalibration sources
 ## variants-sets
-
-# dbSNP for ID-field annotation
-dbsnp146=reference/dbsnp_146.hg38.vcf.gz
 
 # True sites training resource: HapMap
 truetraining15=reference/hapmap_3.3.hg38.vcf.gz
@@ -343,23 +354,13 @@ axiom10=reference/Axiom_Exome_Plus.genotypes.all_populations.poly.hg38.vcf.gz
 # intervals to restrict analysis to chr22
 intervals=reference/chr22.bed
 
-# maxgaussians default to 8 is too high for chr22 calls
-maxgaussians=4
+# maxgaussians default to 8 is too high for chr22-only calls
+maxSNPgaussians=6
+maxINDELgaussians=4
 
 if [ ! -f gatk_variantrecalibration/variantrecalibation_done ]; then
-
 # copy last files from previous step
-cp gatk_variantcalling/${samplename}.vcf.gz* ${outfolder}/
-
-# mark ExcessHet
-threshold=54.69
-java ${javaopts} -jar $GATK/gatk.jar \
-	VariantFiltration \
-	--variant ${outfolder}/${samplename}.vcf.gz \
-	--filter-expression "ExcessHet > ${threshold}" \
-	--filter-name "ExcessHet" \
-	-O ${outfolder}/${samplename}_excesshet_filtered.vcf.gz \
-	--tmp-dir tmpfiles/
+cp gatk_variantcalling/${samplename}_excesshet_filtered.vcf.gz* ${outfolder}/
 
 # extract a 6-column version of the data for recalibration
 java ${javaopts} -jar $GATK/gatk.jar \
@@ -386,7 +387,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--use-annotation MQRankSum \
 	--use-annotation ReadPosRankSum \
 	--mode SNP \
-	--max-gaussians ${maxgaussians} \
+	--max-gaussians ${maxSNPgaussians} \
 	--tranches-file ${outfolder}/${samplename}_recalibrate_snp.tranches \
 	--tranche 100.0 \
 	--tranche 99.9 \
@@ -413,7 +414,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--use-annotation MQRankSum \
 	--use-annotation ReadPosRankSum \
 	--mode INDEL \
-	--max-gaussians ${maxgaussians} \
+	--max-gaussians ${maxINDELgaussians} \
 	--tranches-file ${outfolder}/${samplename}_recalibrate_indels.tranches \
 	--tranche 100.0 \
 	--tranche 99.95 \
@@ -492,7 +493,7 @@ fi
 
 # instructions and filters from:
 # https://gatkforums.broadinstitute.org/gatk/discussion/23216/how-to-filter-variants-either-with-vqsr-or-by-hard-filtering
-# Genepattern does the following: QD < 2.0 || FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0 || SOR > 3.0 || QUAL < 30
+# Genepattern: QD < 2.0 || FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0 || SOR > 3.0 || QUAL < 30
 
 outfolder=gatk_varianthardfiltering
 mkdir -p ${outfolder}
@@ -501,7 +502,7 @@ if [ ! -f gatk_varianthardfiltering/hardFiltering_recalibation_done ]; then
 
 # copy the GenotypeGVCFs vcf output with marked excesshet output from above
 # create local copy of previous file
-cp gatk_variantrecalibration/${samplename}_excesshet_filtered.vcf.gz* ${outfolder}/
+cp gatk_variantcalling/${samplename}_excesshet_filtered.vcf.gz* ${outfolder}/
 
 
 ###########################################
@@ -531,9 +532,10 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--filter "MQRankSum < -12.5" --filter-name "MQRankSum-12.5" \
 	--filter "ReadPosRankSum < -8.0" --filter-name "ReadPosRankSum-8"
 
-###########################################
-# 3) hard-Filter INDELs on multiple metrics
-###########################################
+
+######################################################
+# 3) hard-Filter INDELs and MIXED on multiple metrics
+######################################################
 
 # produces a VCF with records with INDEL-type variants only.
 java ${javaopts} -jar $GATK/gatk.jar \
@@ -543,7 +545,6 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--select-type-to-include INDEL \
 	--select-type-to-include MIXED
 
-
 java ${javaopts} -jar $GATK/gatk.jar \
 	VariantFiltration \
 	-V ${outfolder}/${samplename}_mixed_indels.vcf.gz \
@@ -552,6 +553,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--filter "QUAL < 30.0" --filter-name "QUAL30" \
 	--filter "FS > 200.0" --filter-name "FS200" \
 	--filter "ReadPosRankSum < -20.0" --filter-name "ReadPosRankSum-20"
+
 
 ###########################################
 ## 4) merge SNP and Indel filtered calls	
@@ -629,7 +631,7 @@ vcf-compare -r chr22 \
 	-x 2 \
 	-o snpeff/recall3 \
 	-u 1
-	
+
 3DVenn.R -a 0 -A chr22_VQSR \
 	-b 0 -B chr22_HardF \
 	-c 1396 -C chr22_GoldS \
