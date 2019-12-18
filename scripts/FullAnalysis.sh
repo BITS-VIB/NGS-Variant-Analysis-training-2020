@@ -292,8 +292,8 @@ dbsnp146=reference/dbsnp_146.hg38.vcf.gz
 if [ ! -f gatk_variantcalling/calling_done ]; then
 # call short variants to gvcf format and save supporting reads
 
-# parallel threads
-hmmt=4
+# parallelize the pair hidden Markov models (pair HMM) process
+hmmt=16
 
 java ${javaopts} -jar $GATK/gatk.jar \
 	HaplotypeCaller  \
