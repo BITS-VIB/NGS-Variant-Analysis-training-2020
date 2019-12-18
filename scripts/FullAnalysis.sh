@@ -238,6 +238,12 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	-R ${reference_fa} \
 	-bqsr ${outfolder}/recal_data.table \
 	-O ${outfolder}/${recalbamfile} \
+	--interval-padding 100 \
+	--add-output-sam-program-record \
+	--use-original-qualities \
+	--static-quantized-quals 10 \
+	--static-quantized-quals 20 \
+	--static-quantized-quals 30 \
 	--tmp-dir tmpfiles/
 
 # compute table after
@@ -285,6 +291,10 @@ dbsnp146=reference/dbsnp_146.hg38.vcf.gz
 
 if [ ! -f gatk_variantcalling/calling_done ]; then
 # call short variants to gvcf format and save supporting reads
+
+# parallel threads
+hmmt=4
+
 java ${javaopts} -jar $GATK/gatk.jar \
 	HaplotypeCaller  \
 	--input gatk_preprocessing/${recalbamfile} \
@@ -292,6 +302,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--reference ${reference_fa} \
 	--emit-ref-confidence GVCF \
 	--sample-ploidy 2 \
+	--native-pair-hmm-threads ${hmmt} \
 	--intervals chr22 \
 	--bam-output ${outfolder}/${samplename}_HC_aligned_reads.bam \
 	--tmp-dir tmpfiles/ 
@@ -379,6 +390,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--resource:omni,known=false,training=true,truth=true,prior=12.0 ${truetraining12} \
 	--resource:1000G,known=false,training=true,truth=false,prior=10.0 ${nontruetraining10} \
 	--resource:dbsnp,known=true,training=false,truth=false,prior=2.0 ${knowntraining2} \
+	--trust-all-polymorphic \
 	--use-annotation DP \
 	--use-annotation QD \
 	--use-annotation FS \
@@ -390,11 +402,20 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--max-gaussians ${maxSNPgaussians} \
 	--tranches-file ${outfolder}/${samplename}_recalibrate_snp.tranches \
 	--tranche 100.0 \
+	--tranche 99.95 \
 	--tranche 99.9 \
+	--tranche 99.8 \
+	--tranche 99.6 \
+	--tranche 99.5 \
+	--tranche 99.4 \
+	--tranche 99.3 \
 	--tranche 99.0 \
+	--tranche 98.0 \
+	--tranche 97.0 \
 	--tranche 90.0 \
 	--rscript-file ${outfolder}/${samplename}_recalibrate_snp_plots.R \
 	--tmp-dir tmpfiles/
+
 
 # Build the Indel recalibration model
 java ${javaopts} -jar $GATK/gatk.jar \
@@ -432,6 +453,7 @@ java ${javaopts} -jar $GATK/gatk.jar \
 	--tranche 90.0 \
 	--rscript-file ${outfolder}/${samplename}_recalibrate_indels_plots.R \
 	--tmp-dir tmpfiles/
+
 
 # Apply the desired level of recalibration to the SNPs in the call set
 java ${javaopts} -jar $GATK/gatk.jar \
@@ -599,96 +621,54 @@ fi
 #############################################
 
 gold=reference/NA12878_HG001-chr22_gold.vcf.gz
-
-raw=gatk_variantrecalibration/NA12878.vcf.gz
 vqsr=snpeff/NA12878_VQSR_snpeff.vcf.gz
 hard=snpeff/NA12878_hardfiltering_snpeff.vcf.gz
 
 if [ ! -f snpeff/comparisons_done ]; then
 
-# compare 3
-vcf-compare -r chr22 \
+# compare 3 VCF on PASS and . rows only
+vcf-compare -a \
+	-r chr22 \
 	${vqsr} \
 	${hard} \
-	${gold} | grep "^VN" > snpeff/3venn_counts.txt
+	${gold} | grep ^VN | cut -f 2- > snpeff/3venn_counts.txt
 
-# ..c VN	1396	reference/NA12878_HG001-chr22_gold.vcf.gz (3.3%)
-# abc VN	40794	reference/NA12878_HG001-chr22_gold.vcf.gz (96.7%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (46.6%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (46.6%)
-# ab. VN	46821	snpeff/NA12878_VQSR_snpeff.vcf.gz (53.4%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (53.4%)
+# a.c 26	reference/NA12878_HG001-chr22_gold.vcf.gz (0.1%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (0.0%)
+# a.. 484	snpeff/NA12878_VQSR_snpeff.vcf.gz (0.9%)
+# ..c 1569	reference/NA12878_HG001-chr22_gold.vcf.gz (3.7%)
+# .bc 3070	reference/NA12878_HG001-chr22_gold.vcf.gz (7.3%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (4.6%)
+# .b. 11541	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (17.1%)
+# ab. 15328	snpeff/NA12878_VQSR_snpeff.vcf.gz (28.7%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (22.7%)
+# abc 37525	reference/NA12878_HG001-chr22_gold.vcf.gz (88.9%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (70.3%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (55.6%)
 
 # create venn plot
 # use R to plot
 # https://wiki.bits.vib.be/index.php/NGS_Exercise.6#Create_a_VENN_diagram_for_the_4_mappings
 
-3DVenn.R -a 0 -A chr22_VQSR \
-	-b 0 -B chr22_HardF \
-	-c 1396 -C chr22_GoldS \
-	-d 446821 \
-	-e 0 \
-	-f 0 \
-	-i 40794 \
+3DVenn.R -a 484 -A chr22_VQSR \
+	-b 11541 -B chr22_HardF \
+	-c 1569 -C chr22_GoldS \
+	-d 15328 \
+	-e 26 \
+	-f 3070 \
+	-i 37525 \
 	-t "NA12878 variant recall" \
 	-x 2 \
 	-o snpeff/recall3 \
 	-u 1
 
-3DVenn.R -a 0 -A chr22_VQSR \
-	-b 0 -B chr22_HardF \
-	-c 1396 -C chr22_GoldS \
-	-d 446821 \
-	-e 0 \
-	-f 0 \
-	-i 40794 \
+3DVenn.R -a 484 -A chr22_VQSR \
+	-b 11541 -B chr22_HardF \
+	-c 1569 -C chr22_GoldS \
+	-d 15328 \
+	-e 26 \
+	-f 3070 \
+	-i 37525 \
 	-t "NA12878 variant recall" \
 	-x 2 \
 	-o snpeff/recall3pc \
 	-u 1 \
-	-P 1
-
-# compare 4 including raw calls
-vcf-compare -r chr22 \
-	${raw} \
-	${vqsr} \
-	${hard} \
-	${gold} | grep "^VN" > snpeff/4venn_counts.txt
-
-# ...d VN	1396	reference/NA12878_HG001-chr22_gold.vcf.gz (3.3%)
-# abcd VN	40794	gatk_variantrecalibration/NA12878.vcf.gz (46.6%)	reference/NA12878_HG001-chr22_gold.vcf.gz (96.7%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (46.6%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (46.6%)
-# abc. VN	46821	gatk_variantrecalibration/NA12878.vcf.gz (53.4%)	snpeff/NA12878_VQSR_snpeff.vcf.gz (53.4%)	snpeff/NA12878_hardfiltering_snpeff.vcf.gz (53.4%)
-
-4DVenn.R -a 0 -A chr22_raw \
-	-b 0 -B chr22_VQSR \
-	-c 0 -C chr22_HardF \
-	-d 1396 -D chr22_GoldS \
-	-e 0 \
-	-f 0 \
-	-G 0 \
-	-j 0 \
-	-k 0 \
-	-l 0 \
-	-m 46821 \
-	-n 0 \
-	-p 0 \
-	-q 0 \
-	-i 40794 \
-	-t "NA12878 variant recall" -x 2 -o snpeff/recall4 -u 1
-
-4DVenn.R -a 0 -A chr22_raw \
-	-b 0 -B chr22_VQSR \
-	-c 0 -C chr22_HardF \
-	-d 1396 -D chr22_GoldS \
-	-e 0 \
-	-f 0 \
-	-G 0 \
-	-j 0 \
-	-k 0 \
-	-l 0 \
-	-m 46821 \
-	-n 0 \
-	-p 0 \
-	-q 0 \
-	-i 40794 \
-	-t "NA12878 variant recall" -x 2 -o snpeff/recall4pc -u 1 -P 1 && \
+	-P 1 && \
 	touch snpeff/comparisons_done
 else
 	echo "# VCF-tools comparisons already done"
