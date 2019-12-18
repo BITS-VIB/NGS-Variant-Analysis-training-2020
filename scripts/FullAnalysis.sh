@@ -140,7 +140,7 @@ fi
 # more records in RAM speeds up when enough RAM is present
 recinram=10000000
 
-if [ ! -f bwa_mappings/preprocessing_done ]; then
+if [ ! -f bwa_mappings/MarkDuplicates_done ]; then
 # sort by queryname
 java ${javaopts} -jar $PICARD/picard.jar \
 	SortSam \
@@ -201,9 +201,9 @@ ${samtools} view -@ ${samtoolsthr} -h -b \
 	${outfolder}/${outpfx}_mrkdup_srt-tags.bam ${chr} \
 	-o ${outfolder}/${outpfx}_mrkdup_srt_22only.bam && \
 	${samtools} index ${outfolder}/${outpfx}_mrkdup_srt_22only.bam && \
-		touch bwa_mappings/preprocessing_done
+		touch bwa_mappings/MarkDuplicates_done
 else
-	echo "# GATK preprocessing already done"
+	echo "# GATK MarkDuplicates already done"
 fi
 
 #############################################
