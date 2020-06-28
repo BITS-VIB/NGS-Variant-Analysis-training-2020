@@ -1,0 +1,58 @@
+GATK.BamPreprocess
+  input file : HG001_1pc.bam  [from BWA.mem output]
+  genome : Homo_sapiens.UCSC.hg38.fa
+  known variants : [you can select multiple]
+      Homo_sapiens.Mills_and_1000G.gold_standard_indels.UCSC.hg38.vcf.gz
+      Homo_sapiens.dbSNP_138.UCSC.hg38.vcf.gz
+  optical duplicate pixel distance : 100
+  intervals of interest : Upload your own file : Upload Files :
+       chr22_15M_20M.list
+  analyze cavariates : yes
+
+[ use editor to make file with name
+     called chr22_15M_20M.list
+  and with content
+     chr22:15000000-20000000
+]
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk ViewSam --INPUT /data/genepattern/users/SHARED_DATA/BITS_trainingdata_variant_analysis/2_mappings/HG001_1pc.bam --ALIGNMENT_STATUS All --PF_STATUS All --HEADER_ONLY true --VALIDATION_STRINGENCY  SILENT
+
+  check that header does contain @RG line with ID: SM: PL: fields
+
+mkdir TMP
+/data/genepattern/patches/gatk-4.1.4.0/gatk SortSam --INPUT /data/genepattern/users/SHARED_DATA/BITS_trainingdata_variant_analysis/2_mappings/HG001_1pc.bam --OUTPUT HG001_1pc.querysorted.bam --SORT_ORDER queryname --VALIDATION_STRINGENCY  SILENT --TMP_DIR TMP
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk MarkDuplicates --INPUT HG001_1pc.querysorted.bam --METRICS_FILE HG001_1pc.duplicatesmetrics.txt --OUTPUT HG001_1pc.marked.bam --ASSUME_SORT_ORDER queryname --OPTICAL_DUPLICATE_PIXEL_DISTANCE 100 --VALIDATION_STRINGENCY  SILENT --TMP_DIR TMP
+
+cp HG001_1pc.duplicatesmetrics.txt DUPLICATES_TABLE
+[use editor to remove in DUPLICATES_TABLE lines above ## HISTOGRAM....]
+R
+   > table <- read.table('DUPLICATES_TABLE',header=T)
+   > pdf('HG001_1pc.duplicatesmetrics.pdf')
+   > plot(table$BIN, table$VALUE, xlab='BIN : actual sequencing coverage', ylab='VALUE : estimate of actual (non-duplicate) sequencing coverage', main='ROI')
+   > dev.off()
+[use evince or other tool to view HG001_1pc.duplicatesmetrics.pdf]
+  
+/data/genepattern/patches/gatk-4.1.4.0/gatk SortSam --INPUT HG001_1pc.marked.bam --OUTPUT HG001_1pc.coordinatesorted.bam --SORT_ORDER coordinate --CREATE_INDEX true --VALIDATION_STRINGENCY SILENT --TMP_DIR TMP
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk BaseRecalibrator --input HG001_1pc.coordinatesorted.bam  --known-sites /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/snpdb/Homo_sapiens.Mills_and_1000G.gold_standard_indels.UCSC.hg38.vcf.gz --known-sites /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/snpdb/Homo_sapiens.dbSNP_138.UCSC.hg38.vcf.gz --intervals chr22:15000000:20000000 --interval-padding 100 --output HG001_1pc.BQRSreport --reference /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/genome/Homo_sapiens.UCSC.hg38.fa --use-original-qualities --tmp-dir TMP
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk ApplyBQSR --input HG001_1pc.coordinatesorted.bam --bqsr-recal-file HG001_1pc.BQRSreport --output HG001_1pc.recalibrated.bam --intervals chr22:15000000:20000000 --interval-padding 100 --add-output-sam-program-record --use-original-qualities --static-quantized-quals 10 --static-quantized-quals 20 --static-quantized-quals 30 --tmp-dir TMP
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk BaseRecalibrator --input HG001_1pc.recalibrated.bam --known-sites /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/snpdb/Homo_sapiens.Mills_and_1000G.gold_standard_indels.UCSC.hg38.vcf.gz --known-sites /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/snpdb/Homo_sapiens.dbSNP_138.UCSC.hg38.vcf.gz --intervals chr22:15000000:20000000 --interval-padding 100 --output HG001_1pc.BQRSreport2 --reference /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/genome/Homo_sapiens.UCSC.hg38.fa --use-original-qualities --tmp-dir TMP
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk AnalyzeCovariates --before-report-file HG001_1pc.BQRSreport --after-report-file HG001_1pc.BQRSreport2 --plots-report-file HG001_1pc.covariates.pdf --tmp-dir TMP
+
+==========================================================================================================================
+Some extra commands to index the data
+
+indexing genome :
+.../samtools faidx xxx.fa
+
+making genome dictionary :
+.../gatk CreateSequenceDictionary --REFERENCE xxx.fa --OUTPUT xxx.dict --TMP_DIR TMP
+
+indexing VCF files :
+.../gatk IndexFeatureFile --feature-file xxx.vcf --tmp-dir TMP
+
+

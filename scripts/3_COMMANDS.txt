@@ -1,0 +1,57 @@
+GATK.GermlineGenotyper :
+  input files : HG001_1pc.recalibrated.g.vcf
+                   [from GATK.GermlineSNPsAndIndelsCaller output]
+  genome : Homo_sapiens.UCSC.hg38.fa
+  known variants : Homo_sapiens.dbSNP_146.UCSC.hg38.vcf.gz
+  intervals of interest : Upload your own file : Upload Files :
+       chr22_15M_20M.list
+  remove genotype information : no
+
+[ if not yet done, use editor to make file with name
+     called chr22_15M_20M.list
+  and with content
+     chr22:15000000-20000000
+]
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk GenotypeGVCFs --output GATK_variants.genotyped.vcf --reference /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/genome/Homo_sapiens.UCSC.hg38.fa --variant HG001_1pc.recalibrated.g.vcf --use-new-qual-calculator --intervals chr22:15000000-20000000 --interval-padding 100 --dbsnp /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/snpdb/Homo_sapiens.dbSNP_146.UCSC.hg38.vcf.gz --tmp-dir TMP
+
+## /data/genepattern/patches/gatk-4.1.4.0/gatk MakeSitesOnlyVcf --INPUT GATK_variants.genotyped.vcf --OUTPUT GATK_variants.sitesonly.vcf --TMP_DIR TMP
+## need this for remove genotype information : yes
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk VariantFiltration --variant GATK_variants.sitesonly.vcf --output GATK_variants.hetfiltered.vcf --filter-expression "ExcessHet > 54.69" --filter-name ExcessHet --tmp-dir TMP
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk SelectVariants --variant GATK_variants.hetfiltered.vcf --output GATK_variants.SNPsonly.vcf --select-type-to-include SNP --select-type-to-include MIXED --tmp-dir TMP
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk SelectVariants --variant GATK_variants.hetfiltered.vcf --output GATK_variants.indelsonly.vcf --select-type-to-include INDEL --tmp-dir TMP
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk VariantFiltration --variant GATK_variants.SNPsonly.vcf --output GATK_variants.SNPsfiltered.vcf --filter-expression "QD < 2.0" --filter-expression "FS > 60.0" --filter-expression "MQ < 40.0" --filter-expression "MQRankSum < -12.5" --filter-expression "ReadPosRankSum < -8.0" --filter-expression "SOR > 3.0" --filter-name SnpQualFilter1 --filter-name SnpQualFilter2 --filter-name SnpQualFilter3 --filter-name SnpQualFilter4 --filter-name SnpQualFilter5 --filter-name SnpQualFilter6 --tmp-dir TMP
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk VariantFiltration --variant GATK_variants.indelsonly.vcf --output GATK_variants.indelsfiltered.vcf --filter-expression "QD < 2.0" --filter-expression "FS > 200.0" --filter-expression "ReadPosRankSum < -20.0" --filter-expression "SOR > 10.0" --filter-name IndelQualFilter1 --filter-name IndelQualFilter2 --filter-name IndelQualFilter3 --filter-name IndelQualFilter4 --tmp-dir TMP
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk MergeVcfs --INPUT GATK_variants.SNPsfiltered.vcf --INPUT GATK_variants.indelsfiltered.vcf --OUTPUT GATK_variants.filtered.vcf --TMP_DIR TMP
+
+
+
+=======================================================================================================
+in case there were multiple gVCF files :
+  do first :
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk CombineGVCFs --output GATK_variants.combined.g.vcf --reference /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/genome/Homo_sapiens.UCSC.hg38.fa  --intervals .....  --intervals-padding 100 --variant xxx.recalibrated.g.vcf --variant yyy.recalibrated.g.vcf -variant zzz.recalibrated.g.vcf ....... --tmp-dir TMP
+
+=======================================================================================================
+if the data set contains enough variants to make VQRS possible :
+  do after the VariantFiltration for ExcessHet and instead of
+    the VariantFiltration for QualFilter :
+  (note you need library ggplot2 in R)
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk VariantFiltration --variant GATK_variants.sitesonly.vcf --output GATK_variants.hetfiltered.vcf --filter-expression "ExcessHet > 54.69" --filter-name ExcessHet --tmp-dir TMP --QUIET true
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk VariantRecalibrator -mode INDEL --variant GATK_variants.hetfiltered.vcf --output GATK_variants.indels.VQRSreport.vcf --tranches-file GATK_variants.indels.tranches -an FS -an ReadPosRankSum -an MQRankSum -an QD -an SOR -an DP -tranche 100.0 -tranche 99.95 -tranche 99.9 -tranche 99.5 -tranche 99.0 -tranche 97.0 -tranche 96.0 -tranche 95.0 -tranche 94.0 -tranche 93.5 -tranche 93.0 -tranche 92.0 -tranche 91.0 -tranche 90.0 -resource:mills,known=false,training=true,truth=true,prior=12 /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/snpdb/Homo_sapiens.Mills_and_1000G.gold_standard_indels.UCSC.hg38.vcf.gz -resource:axiomPoly,known=false,training=true,truth=false,prior=10 /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/snpdb/Homo_sapiens.Axiom_Exome_Plus.all_populations.UCSC.hg38.vcf.gz -resource:dbsnp,known=true,training=false,truth=false,prior=2 /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/snpdb/Homo_sapiens.dbSNP_138.UCSC.hg38.vcf.gz --rscript-file GATK_variants.INDELs_annotation.R --trust-all-polymorphic --max-gaussians 4 --tmp-dir TMP
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk VariantRecalibrator -mode SNP --variant GATK_variants.hetfiltered.vcf --output GATK_variants.SNPs.VQRSreport.vcf --tranches-file GATK_variants.SNPs.tranches -an FS -an ReadPosRankSum -an MQRankSum -an QD -an SOR -an DP -an MQ -tranche 100.0 -tranche 99.95 -tranche 99.9 -tranche 99.8 -tranche 99.6 -tranche 99.5 -tranche 99.4 -tranche 99.3 -tranche 99.0 -tranche 98.0 -tranche 97.0 -tranche 90.0 -resource:hapmap,known=false,training=true,truth=true,prior=15 /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/snpdb/Homo_sapiens.HapMap_3.3.UCSC.hg38.vcf.gz -resource:omni,known=false,training=true,truth=true,prior=12 /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/snpdb/Homo_sapiens.1000G_Omni2.5.UCSC.hg38.vcf.gz -resource:1000G,known=false,training=true,truth=false,prior=10 /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/snpdb/Homo_sapiens.1000G_phase1.high_confidence_SNPs.UCSC.hg38.vcf.gz -resource:dbsnp,known=true,training=false,truth=false,prior=7 /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/snpdb/Homo_sapiens.dbSNP_138.UCSC.hg38.vcf.gz --rscript-file GATK_variants.SNPs_annotation.R --trust-all-polymorphic --max-gaussians 6 --tmp-dir TMP
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk ApplyVQSR -mode INDEL --variant GATK_variants.hetfiltered.vcf --recal-file GATK_variants.indels.VQRSreport.vcf --tranches-file GATK_variants.indels.tranches --output GATK_variants.indels_recalibrated.vcf --truth-sensitivity-filter-level 99.7 --tmp-dir TMP
+
+
+/data/genepattern/patches/gatk-4.1.4.0/gatk ApplyVQSR -mode SNP --variant GATK_variants.indels_recalibrated.vcf --recal-file GATK_variants.SNPs.VQRSreport.vcf --tranches-file GATK_variants.SNPs.tranches --output GATK_variants.indels_recalibrated.vcf --truth-sensitivity-filter-level 99.7 --tmp-dir TMP
+

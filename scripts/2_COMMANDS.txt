@@ -1,0 +1,16 @@
+GATK.GermlineSNPsAndIndelsCaller
+  input file : HG001_1pc.recalibrated.bam [from GATK.BamPreprocess output]
+  genome : Homo_sapiens.UCSC.hg38.fa
+  intervals of interest : Upload your own file : Upload Files :
+       chr22_15M_20M.list
+  make BAM : yes
+
+[ if not yet done, use editor to make file with name
+     called chr22_15M_20M.list
+  and with content
+     chr22:15000000-20000000                         
+]
+/data/genepattern/patches/gatk-4.1.4.0/gatk HaplotypeCaller --input HG001_1pc.recalibrated.bam --reference /data/genepattern/users/.cache/uploads/cache/data.gp.vib.be/pub/genome/Homo_sapiens.UCSC.hg38.fa --native-pair-hmm-threads 4 --intervals chr22:15000000-20000000 --interval-padding 100 --emit-ref-confidence GVCF --output HG001_1pc.recalibrated.g.vcf --bam-output HG001_1pc.recalibrated.g.realigned.bam --tmp-dir TMP
+  (parameters
+   --ploidy 2 --max-alternate-alleles 6 --contamination-fraction-to-filter 0.0
+   not needed since already default]
